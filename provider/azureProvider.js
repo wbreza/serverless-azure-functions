@@ -26,8 +26,6 @@ let oldLogs = '';
 let principalCredentials;
 let functionsFolder;
 let existingFunctionApp = false;
-let parsedBindings;
-const zipArray = [];
 const deployedFunctionNames = [];
 
 const constants = {
@@ -36,7 +34,7 @@ const constants = {
   'contentTypeHeader': 'Content-Type',
   'functionAppApiPath': '/api/',
   'functionAppDomain': '.azurewebsites.net',
-  'functionsAdminApiPath': '.azurewebsites.net/admin/functions/',
+  'functionsAdminApiPath': '/admin/functions/',
   'functionsApiPath': '/api/functions',
   'jsonContentType': 'application/json',
   'logInvocationsApiPath': '/azurejobs/api/functions/definitions/',
@@ -46,16 +44,16 @@ const constants = {
   'providerName': 'azure',
   'scmCommandApiPath': '/api/command',
   'scmDomain': '.scm.azurewebsites.net',
-  'scmVfsPath': '.scm.azurewebsites.net/api/vfs/site/wwwroot/',
-  'scmZipApiPath': '.scm.azurewebsites.net/api/zip/site/wwwroot/'
+  'scmVfsPath': '/api/vfs/site/wwwroot/',
+  'scmZipApiPath': '/api/zip/site/wwwroot/'
 };
 
 class AzureProvider {
-  static getProviderName () {
+  static getProviderName() {
     return constants.providerName;
   }
 
-  constructor (serverless) {
+  constructor(serverless) {
     this.provider = this;
     this.serverless = serverless;
 
@@ -68,15 +66,15 @@ class AzureProvider {
 
     return new BbPromise((resolve, reject) => {
       functionAppName = this.serverless.service.service;
-      resourceGroupName = `${functionAppName}-rg`;
-      deploymentName = `${resourceGroupName}-deployment`;
+      resourceGroupName = this.serverless.service.provider.resourceGroupName || `${functionAppName}-rg`;
+      deploymentName = this.serverless.service.provider.deploymentName || `${resourceGroupName}-deployment`;
       functionsFolder = path.join(this.serverless.config.servicePath, 'functions');
 
       resolve();
     });
   }
 
-  getParsedBindings () {
+  getParsedBindings() {
     if (!this.parsedBindings) {
       this.parsedBindings = parseBindings.getBindingsMetaData(this.serverless);
     }
@@ -85,9 +83,11 @@ class AzureProvider {
   }
 
   Login() {
-    return login({ interactiveLoginHandler: (code) => {
-      this.serverless.cli.log(`Paste this code (copied to your clipboard) into the launched browser, and complete the authentication process: ${code}`);
-    }}).then((result) => {
+    return login({
+      interactiveLoginHandler: (code) => {
+        this.serverless.cli.log(`Paste this code (copied to your clipboard) into the launched browser, and complete the authentication process: ${code}`);
+      }
+    }).then((result) => {
       principalCredentials = result.credentials;
       subscriptionId = result.subscriptionId;
 
@@ -95,7 +95,7 @@ class AzureProvider {
     });
   }
 
-  CreateResourceGroup () {
+  CreateResourceGroup() {
     const groupParameters = {
       'location': this.serverless.service.provider.location,
       'tags': { 'sampletag': 'sampleValue' }
@@ -117,7 +117,7 @@ class AzureProvider {
     });
   }
 
-  CreateFunctionApp (method, params) {
+  CreateFunctionApp(method, params) {
     this.serverless.cli.log(`Creating function app: ${functionAppName}`);
     const resourceClient = new resourceManagement.ResourceManagementClient(principalCredentials, subscriptionId);
     let parameters = { 'functionAppName': { 'value': functionAppName } };
@@ -192,7 +192,7 @@ class AzureProvider {
     });
   }
 
-  DeleteDeployment () {
+  DeleteDeployment() {
     this.serverless.cli.log(`Deleting deployment: ${deploymentName}`);
     const resourceClient = new resourceManagement.ResourceManagementClient(principalCredentials, subscriptionId);
     resourceClient.addUserAgentInfo(`${pkg.name}/${pkg.version}`);
@@ -209,7 +209,7 @@ class AzureProvider {
     });
   }
 
-  DeleteResourceGroup () {
+  DeleteResourceGroup() {
     this.serverless.cli.log(`Deleting resource group: ${resourceGroupName}`);
     const resourceClient = new resourceManagement.ResourceManagementClient(principalCredentials, subscriptionId);
     resourceClient.addUserAgentInfo(`${pkg.name}/${pkg.version}`);
@@ -225,9 +225,10 @@ class AzureProvider {
     });
   }
 
-  getAdminKey () {
+  getAdminKey() {
+    const scmDomain = this.serverless.service.provider.scmDomain || constants.scmDomain;
     const options = {
-      'host': functionAppName + constants.scmDomain,
+      'host': functionAppName + scmDomain,
       'port': 443,
       'path': constants.masterKeyApiApth,
       'headers': {
@@ -256,10 +257,12 @@ class AzureProvider {
     });
   }
 
-  pingHostStatus (functionName) {
-    const requestUrl = `https://${functionAppName}${constants.functionAppDomain}/admin/functions/${functionName}/status`;
+  pingHostStatus(functionName) {
+    const functionAppDomain = this.serverless.service.provider.functionAppDomain || constants.functionAppDomain;
+
+    const requestUrl = `https://${functionAppName}${functionAppDomain}/admin/functions/${functionName}/status`;
     const options = {
-      'host': functionAppName + constants.functionAppDomain,
+      'host': functionAppName + functionAppDomain,
       'method': 'get',
       'url': requestUrl,
       'headers': {
@@ -280,8 +283,9 @@ class AzureProvider {
     });
   }
 
-  isExistingFunctionApp () {
-    const host = functionAppName + constants.scmDomain;
+  isExistingFunctionApp() {
+    const scmDomain = this.serverless.service.provider.scmDomain || constants.scmDomain;
+    const host = functionAppName + scmDomain;
 
     return new BbPromise((resolve, reject) => {
       dns.resolve4(host, (err, addresses) => {
@@ -299,10 +303,11 @@ class AzureProvider {
     });
   }
 
-  getDeployedFunctionsNames () {
-    const requestUrl = `https://${functionAppName}${constants.scmDomain}${constants.functionsApiPath}`;
+  getDeployedFunctionsNames() {
+    const scmDomain = this.serverless.service.provider.scmDomain || constants.scmDomain;
+    const requestUrl = `https://${functionAppName}${scmDomain}${constants.functionsApiPath}`;
     const options = {
-      'host': functionAppName + constants.scmDomain,
+      'host': functionAppName + scmDomain,
       'method': 'get',
       'url': requestUrl,
       'headers': {
@@ -338,9 +343,10 @@ class AzureProvider {
     });
   }
 
-  getLogsStream (functionName) {
+  getLogsStream(functionName) {
+    const scmDomain = this.serverless.service.provider.scmDomain || constants.scmDomain;
     const logOptions = {
-      'host': functionAppName + constants.scmDomain,
+      'host': functionAppName + scmDomain,
       'port': 443,
       'path': constants.logStreamApiPath + functionName,
       'headers': {
@@ -369,9 +375,10 @@ class AzureProvider {
     });
   }
 
-  getInvocationId (functionName) {
+  getInvocationId(functionName) {
+    const scmDomain = this.serverless.service.provider.scmDomain || constants.scmDomain;
     const options = {
-      'host': functionAppName + constants.scmDomain,
+      'host': functionAppName + scmDomain,
       'port': 443,
       'path': `${constants.logInvocationsApiPath + functionAppName}-${functionName}/invocations?limit=5`,
       'headers': {
@@ -400,10 +407,11 @@ class AzureProvider {
     });
   }
 
-  getLogsForInvocationId () {
+  getLogsForInvocationId() {
     this.serverless.cli.log(`Logs for InvocationId: ${invocationId}`);
+    const scmDomain = this.serverless.service.provider.scmDomain || constants.scmDomain;
     const options = {
-      'host': functionAppName + constants.scmDomain,
+      'host': functionAppName + scmDomain,
       'port': 443,
       'path': constants.logOutputApiPath + invocationId,
       'headers': {
@@ -430,30 +438,32 @@ class AzureProvider {
     });
   }
 
-  invoke (functionName, eventType, eventData) {
+  invoke(functionName, eventType, eventData) {
+    const functionAppDomain = this.serverless.service.provider.functionAppDomain || constants.functionAppDomain;
+
     let options = {};
 
     if (eventType === 'http') {
       let queryString = '';
 
-      if (eventData) {     
+      if (eventData) {
         if (typeof eventData === "string") {
           try {
             eventData = JSON.parse(eventData);
           }
           catch (error) {
             return BbPromise.reject("The specified input data isn't a valid JSON string. " +
-                                    "Please correct it and try invoking the function again.");
+              "Please correct it and try invoking the function again.");
           }
         }
 
         queryString = Object.keys(eventData)
-                            .map((key) => `${key}=${eventData[key]}`)
-                            .join("&");
+          .map((key) => `${key}=${eventData[key]}`)
+          .join("&");
       }
 
       options = {
-        'host': functionAppName + constants.functionAppDomain,
+        'host': functionAppName + functionAppDomain,
         'path': `${constants.functionAppApiPath + functionName}?${queryString}`
       };
 
@@ -474,11 +484,11 @@ class AzureProvider {
         });
       });
     }
-    
-    const requestUrl = `https://${functionAppName}${constants.functionsAdminApiPath}${functionName}`;
-      
+
+    const requestUrl = `https://${functionAppName}${functionAppDomain}${constants.functionsAdminApiPath}${functionName}`;
+
     options = {
-      'host': constants.functionAppDomain,
+      'host': functionAppDomain,
       'method': 'post',
       'body': eventData,
       'url': requestUrl,
@@ -500,7 +510,7 @@ class AzureProvider {
     });
   }
 
-  syncTriggers () {
+  syncTriggers() {
     let options = {};
     const requestUrl = ` https://management.azure.com/subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/Microsoft.Web/sites/${functionAppName}/functions/synctriggers?api-version=2015-08-01`;
     options = {
@@ -527,16 +537,17 @@ class AzureProvider {
 
   }
 
-  runKuduCommand (command) {
+  runKuduCommand(command) {
     this.serverless.cli.log(`Running Kudu command ${command}...`);
     let options = {};
-    const requestUrl = `https://${functionAppName}${constants.scmDomain}${constants.scmCommandApiPath}`;
+    const scmDomain = this.serverless.service.provider.scmDomain || constants.scmDomain;
+    const requestUrl = `https://${functionAppName}${scmDomain}${constants.scmCommandApiPath}`;
     let postBody = {
       "command": command,
       "dir": 'site\\wwwroot'
     }
     options = {
-      'host': functionAppName + constants.scmDomain,
+      'host': functionAppName + scmDomain,
       'method': 'post',
       'body': postBody,
       'url': requestUrl,
@@ -557,7 +568,7 @@ class AzureProvider {
 
   }
 
-  cleanUpFunctionsBeforeDeploy (serverlessFunctions) {
+  cleanUpFunctionsBeforeDeploy(serverlessFunctions) {
     const deleteFunctionPromises = [];
 
     deployedFunctionNames.forEach((functionName) => {
@@ -571,9 +582,10 @@ class AzureProvider {
   }
 
   deleteFunction(functionName) {
-    const requestUrl = `https://${functionAppName}${constants.scmVfsPath}${functionName}/?recursive=true`;
+    const scmDomain = this.serverless.service.provider.scmDomain || constants.scmDomain;
+    const requestUrl = `https://${functionAppName}${scmDomain}${constants.scmVfsPath}${functionName}/?recursive=true`;
     const options = {
-      'host': functionAppName + constants.scmDomain,
+      'host': functionAppName + scmDomain,
       'method': 'delete',
       'url': requestUrl,
       'headers': {
@@ -594,12 +606,13 @@ class AzureProvider {
     });
   }
 
-  uploadPackageJson () {
+  uploadPackageJson() {
     const packageJsonFilePath = path.join(this.serverless.config.servicePath, 'package.json');
     this.serverless.cli.log(`Uploading pacakge.json ...`);
-    const requestUrl = `https://${functionAppName}${constants.scmVfsPath}package.json`;
+    const scmDomain = this.serverless.service.provider.scmDomain || constants.scmDomain;
+    const requestUrl = `https://${functionAppName}${scmDomain}${constants.scmVfsPath}package.json`;
     const options = {
-      'host': functionAppName + constants.scmDomain,
+      'host': functionAppName + scmDomain,
       'method': 'put',
       'url': requestUrl,
       'headers': {
@@ -608,25 +621,26 @@ class AzureProvider {
         'Content-Type': constants.jsonContentType
       }
     };
-    
+
     return new BbPromise((resolve, reject) => {
       if (fs.existsSync(packageJsonFilePath)) {
         fs.createReadStream(packageJsonFilePath)
-        .pipe(request.put(options, (err, res, body) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve('Package json file uploaded');
-          }
-        }));
+          .pipe(request.put(options, (err, res, body) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve('Package json file uploaded');
+            }
+          }));
       }
-      else{
-          resolve('Package json file does not exist');
+      else {
+        resolve('Package json file does not exist');
       }
     });
   }
 
-  createZipObjectAndUploadFunction (functionName, entryPoint, filePath, params) {
+  createZipObjectAndUploadFunction(functionName, entryPoint, filePath, params) {
+    const scmDomain = this.serverless.service.provider.scmDomain || constants.scmDomain;
 
     return new BbPromise((resolve, reject) => {
       this.serverless.cli.log(`Packaging function: ${functionName}`);
@@ -650,7 +664,7 @@ class AzureProvider {
         if (createZipErr) {
           reject(createZipErr);
         } else {
-          const requestUrl = `https://${functionAppName}${constants.scmZipApiPath}/${functionName}/`;
+          const requestUrl = `https://${functionAppName}${scmDomain}${constants.scmZipApiPath}/${functionName}/`;
           const options = {
             'url': requestUrl,
             'headers': {
