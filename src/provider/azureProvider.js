@@ -1,4 +1,3 @@
-const BbPromise = require('bluebird');
 const _ = require('lodash');
 const resourceManagement = require('azure-arm-resource');
 const path = require('path');
@@ -34,7 +33,7 @@ export default class AzureProvider {
     this.serverless.setProvider(config.providerName, this);
   }
 
-  initialize(serverless, options) {
+  async initialize(serverless, options) {
     this.serverless = serverless;
     this.options = options;
 
@@ -44,13 +43,9 @@ export default class AzureProvider {
     config.functionAppDomain = this.serverless.service.provider.functionAppDomain || config.functionAppDomain;
     config.scmDomain = this.serverless.service.provider.scmDomain || config.scmDomain;
 
-    return new BbPromise((resolve) => {
-      functionAppName = this.serverless.service.service;
-      resourceGroupName = this.serverless.service.provider.resourceGroup || `${functionAppName}-rg`;
-      deploymentName = this.serverless.service.provider.deploymentName || `${resourceGroupName}-deployment`;
-
-      resolve();
-    });
+    functionAppName = this.serverless.service.service;
+    resourceGroupName = this.serverless.service.provider.resourceGroup || `${functionAppName}-rg`;
+    deploymentName = this.serverless.service.provider.deploymentName || `${resourceGroupName}-deployment`;
   }
 
   getParsedBindings() {
@@ -86,13 +81,15 @@ export default class AzureProvider {
     const resourceClient = new resourceManagement.ResourceManagementClient(principalCredentials, subscriptionId);
     resourceClient.addUserAgentInfo(`${pkg.name}/${pkg.version}`);
 
-    return new BbPromise((resolve, reject) => {
-      resourceClient.resourceGroups.createOrUpdate(resourceGroupName,
-        groupParameters, (error, result) => {
-          if (error) return reject(error);
-          resolve(result);
-        });
-    });
+    try {
+      return await resourceClient.resourceGroups.createOrUpdate(
+        resourceGroupName,
+        groupParameters
+      );
+    }
+    catch (e) {
+      throw e;
+    }
   }
 
   CreateFunctionApp() {
@@ -156,6 +153,7 @@ export default class AzureProvider {
       }
     };
 
+    // TODO: Not entirely sure how to handle this block w/ async await
     return new BbPromise((resolve, reject) => {
       resourceClient.deployments.createOrUpdate(resourceGroupName,
         deploymentName,
@@ -176,13 +174,12 @@ export default class AzureProvider {
     const resourceClient = new resourceManagement.ResourceManagementClient(principalCredentials, subscriptionId);
     resourceClient.addUserAgentInfo(`${pkg.name}/${pkg.version}`);
 
-    return new BbPromise((resolve, reject) => {
-      resourceClient.deployments.deleteMethod(resourceGroupName,
-        deploymentName, (error, result) => {
-          if (error) return reject(error);
-          resolve(result);
-        });
-    });
+    try {
+      return await resourceClient.deployments.deleteMethod(resourceGroupName, deploymentName);
+    }
+    catch (e) {
+      throw e;
+    }
   }
 
   DeleteResourceGroup() {
@@ -190,15 +187,12 @@ export default class AzureProvider {
     const resourceClient = new resourceManagement.ResourceManagementClient(principalCredentials, subscriptionId);
     resourceClient.addUserAgentInfo(`${pkg.name}/${pkg.version}`);
 
-    return new BbPromise((resolve, reject) => {
-      resourceClient.resourceGroups.deleteMethod(resourceGroupName, (error, result) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve(result);
-        }
-      });
-    });
+    try {
+      return await resourceClient.resourceGroups.deleteMethod(resourceGroupName);
+    }
+    catch (e) {
+      throw e;
+    }
   }
 
   getAdminKey() {
@@ -210,6 +204,7 @@ export default class AzureProvider {
       }
     };
 
+    // TODO: Not quite sure about this one either
     return new BbPromise((resolve, reject) => {
       request(options, (err, response, body) => {
         if (err) return reject(err);
