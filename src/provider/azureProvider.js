@@ -154,7 +154,7 @@ export default class AzureProvider {
     };
 
     // TODO: Not entirely sure how to handle this block w/ async await
-    return new BbPromise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       resourceClient.deployments.createOrUpdate(resourceGroupName,
         deploymentName,
         deploymentParameters, (error, result) => {
@@ -205,7 +205,7 @@ export default class AzureProvider {
     };
 
     // TODO: Not quite sure about this one either
-    return new BbPromise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       request(options, (err, response, body) => {
         if (err) return reject(err);
         if (response.statusCode !== 200) return reject(body);
@@ -230,7 +230,7 @@ export default class AzureProvider {
       }
     };
 
-    return new BbPromise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       this.serverless.cli.log('Pinging host status...');
       request(options, (err, res, body) => {
         if (err) return reject(err);
@@ -248,7 +248,7 @@ export default class AzureProvider {
   isExistingFunctionApp() {
     const host = functionAppName + config.scmDomain;
 
-    return new BbPromise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       dns.resolve4(host, (err) => {
         if (err) {
           if (err.message.includes('ENOTFOUND')) {
@@ -277,7 +277,7 @@ export default class AzureProvider {
       }
     };
 
-    return new BbPromise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       if (existingFunctionApp) {
         this.serverless.cli.log('Looking for deployed functions that are not part of the current deployment...');
         request(options, (err, res, body) => {
@@ -331,7 +331,7 @@ export default class AzureProvider {
       }
     };
 
-    return new BbPromise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       request(options, (err, response, body) => {
         if (err) return reject(err);
         if (response.statusCode !== 200) return reject(body);
@@ -354,7 +354,7 @@ export default class AzureProvider {
       }
     };
 
-    return new BbPromise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       request(options, (err, response, body) => {
         if (err) return reject(err);
         if (response.statusCode !== 200) return reject(body);
@@ -374,7 +374,7 @@ export default class AzureProvider {
             eventData = JSON.parse(eventData);
           }
           catch (error) {
-            return BbPromise.reject('The specified input data isn\'t a valid JSON string. ' +
+            return Promise.reject('The specified input data isn\'t a valid JSON string. ' +
               'Please correct it and try invoking the function again.');
           }
         }
@@ -384,7 +384,7 @@ export default class AzureProvider {
           .join('&');
       }
 
-      return new BbPromise((resolve, reject) => {
+      return new Promise((resolve, reject) => {
         const options = {
           headers: {
             'x-functions-key': functionsAdminKey
@@ -420,7 +420,7 @@ export default class AzureProvider {
       }
     };
 
-    return new BbPromise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       request(options, (err, res) => {
         if (err) {
           reject(err);
@@ -449,7 +449,7 @@ export default class AzureProvider {
       }
     };
 
-    return new BbPromise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       request(options, (err, res) => {
         if (err) {
           reject(err);
@@ -480,7 +480,7 @@ export default class AzureProvider {
       }
     };
 
-    return new BbPromise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       request(options, (err, res, body) => {
         if (err) return reject(err);
 
@@ -508,7 +508,7 @@ export default class AzureProvider {
       }
     });
 
-    return BbPromise.all(deleteFunctionPromises);
+    return Promise.all(deleteFunctionPromises);
   }
 
   deleteFunction(functionName) {
@@ -524,7 +524,7 @@ export default class AzureProvider {
       }
     };
 
-    return new BbPromise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       request(options, (err, res) => {
         if (err) {
           reject(err);
@@ -551,7 +551,7 @@ export default class AzureProvider {
       }
     };
 
-    return new BbPromise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       if (fs.existsSync(packageJsonFilePath)) {
         fs.createReadStream(packageJsonFilePath)
           .pipe(request.put(options, (err) => {
@@ -569,7 +569,7 @@ export default class AzureProvider {
   }
 
   createEventsBindings(functionName, entryPoint, filePath, params) {
-    return new BbPromise((resolve) => {
+    return new Promise((resolve) => {
       const functionJSON = params.functionsJson;
       functionJSON.entryPoint = entryPoint;
       functionJSON.scriptFile = filePath;
@@ -579,7 +579,7 @@ export default class AzureProvider {
   }
 
   uploadFunction(functionName) {
-    return new BbPromise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       this.serverless.cli.log(`Uploading function: ${functionName}`);
 
       var functionZipFile = '';
@@ -613,14 +613,14 @@ export default class AzureProvider {
   }
 
   deployApi() {
-    return new BbPromise((resolve) => {
+    return new Promise((resolve) => {
       this.serverless.cli.log('Deploying APIM API');
       setTimeout(resolve, 1000);
     });
   }
 
   deployApiOperation(functionName) {
-    return new BbPromise((resolve) => {
+    return new Promise((resolve) => {
       this.serverless.cli.log(`Deploying APIM operation for function: ${functionName}`);
       setTimeout(resolve, 1000);
     });
